@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="section-padding" style="padding-top:60px;">
+  <div class="container">
+    <!-- Entire report content wrapped for PDF capture -->
+    <div id="report-content">
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:48px;" class="fade-up">
+      <div>
+        <h1 class="section-headline gradient-text" style="margin-bottom:12px;">Analysis Results</h1>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <span class="pill">{{ analysis.dataset_name }}</span>
+          <span class="pill">{{ analysis.analysis_timestamp }}</span>
+          <span class="pill">{{ analysis.target_col }} vs {{ analysis.sensitive_col }}</span>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div class="label-tag" style="margin-bottom:6px;">Verdict</div>
+        <div style="font-size:16px;font-weight:600;color:var(--white);">
+          {% if analysis.verdict == 'biased' %}High Bias{% elif analysis.verdict == 'warning' %}Moderate Bias{% else %}Fair{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Insight -->
+    <div class="card fade-up" style="margin-bottom:32px;border-left:2px solid rgba(255,255,255,0.15);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--white)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <span style="font-size:16px;font-weight:600;color:var(--white);">AI Insight</span>
+      </div>
+      <p style="font-size:15px;line-height:1.7;">
+        {% if analysis.fairness_score < 50 %}
+        Significant disparity detected in <strong style="color:var(--white);">{{ analysis.target_col }}</strong> across <strong style="color:var(--white);">{{ analysis.sensitive_col }}</strong> groups. Disparate impact ratio is <strong style="color:var(--white);">{{ "%.2f"|format(analysis.disparate_impact) }}</strong>. Immediate intervention required.
+        {% elif analysis.fairness_score < 75 %}
+        Moderate differences found across <strong style="color:var(--white);">{{ analysis.sensitive_col }}</strong>. Disparate impact ratio is <strong style="color:var(--white);">{{ "%.2f"|format(analysis.disparate_impact) }}</strong>, near the acceptable range but indicating potential underlying biases.
+        {% else %}
+        Dataset appears fair. Selection rate across <strong style="color:var(--white);">{{ analysis.sensitive_col }}</strong> groups is balanced, with a disparate impact ratio of <strong style="color:var(--white);">{{ "%.2f"|format(analysis.disparate_impact) }}</strong>.
+        {% endif %}
+      </p>
+    </div>
+
+    <!-- Metrics Grid -->
+    <div class="grid-3" style="margin-bottom:48px;">
+      <!-- Fairness Score -->
+      <div class="card fade-up" style="text-align:center;">
+        <div class="label-tag" style="margin-bottom:16px;">Overall Fairness</div>
+        <div class="gauge-container" style="position:relative;width:160px;height:160px;margin:0 auto 16px;">
+          <canvas id="fairness-gauge"></canvas>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+            <span class="metric-big">{{ analysis.fairness_score }}</span>
+          </div>
+        </div>
+        <div class="label-tag">Score out of 100</div>
+      </div>
+
+      <!-- Disparate Impact -->
+      <div class="card fade-up">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--white)" stroke-width="1.5"><path d="M12 3v18M3 12h18"/></svg>
+          <span style="font-size:16px;font-weight:600;color:var(--white);">Disparate Impact</span>
+        </div>
+        <div class="label-tag" style="margin-bottom:20px;">Min rate / Max rate</div>
+        <div class="metric-big" style="margin-bottom:24px;">{{ "%.2f"|format(analysis.disparate_impact) }}</div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;">
+            <span>0.0</span><span>0.8</span><span>1.2</span><span>2.0+</span>
+          </div>
+          <div class="progress-track" style="height:4px;background:rgba(255,255,255,0.06);position:relative;">
+            {% set mp = (analysis.disparate_impact / 2.0 * 100) %}{% if mp > 100 %}{% set mp = 100 %}{% endif %}
+            <div style="position:absolute;top:-4px;left:{{ mp }}%;width:12px;height:12px;background:var(--white);border-radius:50%;transform:translateX(-50%);box-shadow:0 0 8px rgba(255,255,255,0.3);"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Selection Rate -->
+      <div class="card fade-up">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--white)" stroke-width="1.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+          <span style="font-size:16px;font-weight:600;color:var(--white);">Selection Rate</span>
+        </div>
+        <div class="label-tag" style="margin-bottom:16px;">By {{ analysis.sensitive_col }}</div>
+        <div style="display:flex;flex-direction:column;gap:14px;max-height:180px;overflow-y:auto;">
+          {% for group, rate in analysis.demographic_parity.items() %}
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
+              <span style="color:var(--white);text-transform:capitalize;">{{ group }}</span>
+              <span style="color:var(--muted);font-weight:500;">{{ (rate * 100)|round(1) }}%</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill parity-fill" style="width:0%;" data-width="{{ rate * 100 }}%"></div></div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="grid-2" style="margin-bottom:48px;">
+      <div class="card fade-up">
+        <div style="font-size:16px;font-weight:600;color:var(--white);margin-bottom:16px;">Bias Distribution</div>
+        <div style="position:relative;height:300px;"><canvas id="bias-heatmap"></canvas></div>
+      </div>
+      <div class="card fade-up">
+        <div style="font-size:16px;font-weight:600;color:var(--white);margin-bottom:16px;">Dataset Composition</div>
+        <div style="position:relative;height:300px;"><canvas id="composition-chart"></canvas></div>
+      </div>
+    </div>
+    </div><!-- /report-content -->
+
+    <!-- Actions + Export -->
+    <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;" class="fade-up">
+      <a href="{{ url_for('upload.upload_page') }}" class="btn-outline">Start Over</a>
+      <a href="{{ url_for('suggestions.suggestions_page') }}" class="btn-primary">Get AI Fix Suggestions →</a>
+      <button type="button" class="btn-outline" id="btn-export-pdf" onclick="exportPDF()" style="gap:6px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Export PDF
+      </button>
+      <a href="{{ url_for('export.export_docx') }}" class="btn-outline" id="btn-export-docx" style="gap:6px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Export DOCX
+      </a>
+    </div>
+
+    <!-- Export status toast -->
+    <div id="export-toast" style="display:none;position:fixed;bottom:32px;right:32px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#86efac;padding:14px 20px;border-radius:10px;font-size:14px;font-weight:500;z-index:9999;backdrop-filter:blur(8px);animation:fadeSlide 0.3s ease-out;">
+      ✓ Report downloaded successfully
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/charts.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/heatmap.js') }}?v=3"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const analysisData = {{ analysis | tojson | safe }};
+    console.log('[FairSight] Analysis data:', analysisData);
+    console.log('[FairSight] demographic_parity:', analysisData.demographic_parity);
+    console.log('[FairSight] group_counts:', analysisData.group_counts);
+
+    Chart.defaults.color = '#6b7280';
+    Chart.defaults.font.family = "'Inter', sans-serif";
+
+    // Animate parity fill bars
+    setTimeout(() => {
+        document.querySelectorAll('.parity-fill').forEach(bar => { bar.style.width = bar.dataset.width; });
+    }, 300);
+
+    // Fairness gauge
+    const gc = document.getElementById('fairness-gauge');
+    if (gc) {
+        new Chart(gc, {
+            type: 'doughnut',
+            data: { datasets: [{ data: [analysisData.fairness_score, 100-analysisData.fairness_score], backgroundColor: ['#ffffff','rgba(255,255,255,0.05)'], borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '82%', plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 1500, easing: 'easeOutQuart' } }
+        });
+    }
+
+    // Bias Distribution (heatmap) — with fallback
+    const heatmapCanvas = document.getElementById('bias-heatmap');
+    if (heatmapCanvas) {
+        if (analysisData.demographic_parity && Object.keys(analysisData.demographic_parity).length > 0) {
+            console.log('[FairSight] Rendering heatmap with:', analysisData.demographic_parity);
+            if (typeof renderHeatmap === 'function') {
+                renderHeatmap('bias-heatmap', analysisData.demographic_parity);
+            } else {
+                console.error('[FairSight] renderHeatmap function not found');
+                showFallback(heatmapCanvas, 'Chart function unavailable');
+            }
+        } else {
+            console.warn('[FairSight] No demographic_parity data for heatmap');
+            showFallback(heatmapCanvas, 'No data available');
+        }
+    }
+
+    // Dataset Composition (donut) — with fallback
+    const compCanvas = document.getElementById('composition-chart');
+    if (compCanvas) {
+        // Build group_counts from demographic_parity if not provided (backward compat)
+        let groupCounts = analysisData.group_counts;
+        if (!groupCounts || Object.keys(groupCounts).length === 0) {
+            // Fallback: derive approximate counts from demographic_parity
+            if (analysisData.demographic_parity && analysisData.dataset_size) {
+                const numGroups = Object.keys(analysisData.demographic_parity).length;
+                if (numGroups > 0) {
+                    groupCounts = {};
+                    Object.keys(analysisData.demographic_parity).forEach(g => {
+                        groupCounts[g] = Math.round(analysisData.dataset_size / numGroups);
+                    });
+                    console.log('[FairSight] Derived group_counts from parity:', groupCounts);
+                }
+            }
+        }
+
+        if (groupCounts && Object.keys(groupCounts).length > 0) {
+            console.log('[FairSight] Rendering composition chart with:', groupCounts);
+            if (typeof renderCompositionChart === 'function') {
+                renderCompositionChart('composition-chart', groupCounts);
+            } else {
+                console.error('[FairSight] renderCompositionChart function not found');
+                showFallback(compCanvas, 'Chart function unavailable');
+            }
+        } else {
+            console.warn('[FairSight] No group_counts data for composition chart');
+            showFallback(compCanvas, 'No data available');
+        }
+    }
+
+    // Fallback message helper
+    function showFallback(canvas, message) {
+        const parent = canvas.parentElement;
+        canvas.style.display = 'none';
+        const fallback = document.createElement('div');
+        fallback.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px;';
+        fallback.textContent = message;
+        parent.appendChild(fallback);
+    }
+});
+
+// ── PDF Export using html2canvas + jsPDF ──
+async function exportPDF() {
+    const btn = document.getElementById('btn-export-pdf');
+    const originalText = btn.innerHTML;
+    const toast = document.getElementById('export-toast');
+
+    // Loading state
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" style="animation:spin 0.8s linear infinite;"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="30 70"/></svg> Generating PDF...</span>';
+
+    try {
+        const reportEl = document.getElementById('report-content');
+        if (!reportEl) { alert('Report content not found.'); return; }
+
+        // Wait for charts to finish rendering
+        await new Promise(r => setTimeout(r, 500));
+
+        const canvas = await html2canvas(reportEl, {
+            backgroundColor: '#080808',
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            allowTaint: true
+        });
+
+        const imgData = canvas.toDataURL('image/png');
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const margin = 10;
+        const imgWidth = pageWidth - (margin * 2);
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+        let y = margin;
+        let remainingHeight = imgHeight;
+
+        // Multi-page support
+        while (remainingHeight > 0) {
+            if (y !== margin) pdf.addPage();
+            pdf.addImage(imgData, 'PNG', margin, y === margin ? margin : -(imgHeight - remainingHeight - margin), imgWidth, imgHeight);
+            remainingHeight -= (pageHeight - margin * 2);
+            y = margin;
+        }
+
+        pdf.save('FairSight_Report.pdf');
+
+        // Show success toast
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 3000);
+
+    } catch (err) {
+        console.error('[FairSight] PDF export error:', err);
+        alert('PDF export failed: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+</script>
+{% endblock %}

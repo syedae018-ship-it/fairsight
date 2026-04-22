@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block page_title %}Model Bias Audit{% endblock %}
+{% block breadcrumb %}Model Upload{% endblock %}
+
+{% block content %}
+<div class="upload-container" style="max-width: 800px; margin: 0 auto; padding-top: 60px;">
+  <div class="section-intro">
+    <div class="pill fade-up">AUDIT</div>
+    <h1 class="section-headline gradient-text fade-up">Model Bias Audit</h1>
+    <p class="section-subtitle fade-up">Upload a trained sklearn .pkl model + test CSV to detect bias in model predictions</p>
+  </div>
+
+  <!-- How it works -->
+  <div class="how-it-works card fade-up" style="margin-bottom: 32px;">
+    <h3 style="margin-bottom: 16px; color: var(--white);">⚙️ How It Works</h3>
+    <div class="steps-row" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+      <div class="step" style="flex: 1; min-width: 120px; text-align: center;">
+        <span class="step-num" style="width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.1); display: inline-flex; align-items: center; justify-content: center; font-weight: bold; margin-bottom: 8px;">1</span>
+        <p style="font-size: 13px; color: var(--body-text);">Upload your trained <strong>.pkl</strong> sklearn model</p>
+      </div>
+      <div class="step-arrow" style="color: var(--muted); font-size: 1.5rem;">→</div>
+      <div class="step" style="flex: 1; min-width: 120px; text-align: center;">
+        <span class="step-num" style="width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.1); display: inline-flex; align-items: center; justify-content: center; font-weight: bold; margin-bottom: 8px;">2</span>
+        <p style="font-size: 13px; color: var(--body-text);">Upload a <strong>test CSV</strong> with feature columns</p>
+      </div>
+      <div class="step-arrow" style="color: var(--muted); font-size: 1.5rem;">→</div>
+      <div class="step" style="flex: 1; min-width: 120px; text-align: center;">
+        <span class="step-num" style="width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.1); display: inline-flex; align-items: center; justify-content: center; font-weight: bold; margin-bottom: 8px;">3</span>
+        <p style="font-size: 13px; color: var(--body-text);">FairSight runs predictions and <strong>detects bias</strong></p>
+      </div>
+    </div>
+  </div>
+
+  <form method="POST" action="/analyze-model" enctype="multipart/form-data" id="model-form" class="fade-up">
+
+    <!-- Model Upload -->
+    <div class="card upload-card" style="margin-bottom: 24px;">
+      <h3 style="margin-bottom: 8px; color: var(--white);">📦 Upload Trained Model</h3>
+      <p class="upload-hint" style="color: var(--muted); font-size: 13px; margin-bottom: 16px;">Supported: sklearn models saved with pickle (.pkl, .joblib)</p>
+      <div class="drop-zone" id="model-drop-zone" onclick="document.getElementById('model-file').click()">
+        <div class="drop-zone-icon">🧠</div>
+        <p class="drop-zone-text">Drop your .pkl model here or click to browse</p>
+        <p class="drop-zone-hint" id="model-filename" style="margin-top: 8px; color: var(--muted); font-size: 13px;">No file selected</p>
+      </div>
+      <input type="file" id="model-file" name="model_file" accept=".pkl,.joblib" style="display:none"
+             onchange="document.getElementById('model-filename').textContent = this.files[0] ? this.files[0].name : 'No file selected'">
+    </div>
+
+    <!-- CSV Upload -->
+    <div class="card upload-card" style="margin-bottom: 24px;">
+      <h3 style="margin-bottom: 8px; color: var(--white);">📄 Upload Test CSV</h3>
+      <p class="upload-hint" style="color: var(--muted); font-size: 13px; margin-bottom: 16px;">CSV should contain feature columns + a sensitive attribute column (e.g. gender, race)</p>
+      <div class="drop-zone" id="csv-drop-zone" onclick="document.getElementById('csv-file').click()">
+        <div class="drop-zone-icon">📊</div>
+        <p class="drop-zone-text">Drop your test CSV here or click to browse</p>
+        <p class="drop-zone-hint" id="csv-filename" style="margin-top: 8px; color: var(--muted); font-size: 13px;">No file selected</p>
+      </div>
+      <input type="file" id="csv-file" name="csv_file" accept=".csv" style="display:none">
+    </div>
+
+    <!-- Sensitive Column — Dynamic Dropdown -->
+    <div class="card" style="margin-bottom: 32px;">
+      <h3 style="margin-bottom: 8px; color: var(--white);">🎯 Sensitive Attribute Column</h3>
+      <p class="upload-hint" style="color: var(--muted); font-size: 13px; margin-bottom: 16px;">Upload a CSV first — columns will appear automatically</p>
+      <select name="sensitive_col" id="sensitive-col-select" disabled
+              style="width:100%; opacity: 0.5;">
+        <option value="">— Upload CSV to see columns —</option>
+      </select>
+      <p id="col-status" style="margin-top: 8px; font-size: 12px; color: var(--muted);"></p>
+    </div>
+
+    <button type="submit" class="btn-primary" id="submit-btn" style="width: 100%; justify-content: center; height: 50px;">
+      🔍 Run Model Bias Audit
+    </button>
+
+  </form>
+
+  <!-- Divider -->
+  <div class="divider fade-up" style="text-align: center; position: relative; margin: 32px 0; color: var(--muted); font-size: 13px;">
+    <span style="position: relative; z-index: 1; background: var(--bg); padding: 0 16px;">or</span>
+    <div style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--border); z-index: 0;"></div>
+  </div>
+
+  <!-- Demo Button -->
+  <form method="POST" action="/analyze-model" class="fade-up" style="margin-bottom: 80px;">
+    <input type="hidden" name="use_demo" value="true">
+    <button type="submit" class="btn-outline" style="width: 100%; justify-content: center; height: 50px;">
+      ⚡ Load Demo Biased Model
+    </button>
+    <p class="demo-hint" style="text-align: center; color: var(--muted); font-size: 13px; margin-top: 12px;">Demo uses a pre-trained hiring model with deliberate gender bias baked in</p>
+  </form>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const csvInput = document.getElementById('csv-file');
+    const selectEl = document.getElementById('sensitive-col-select');
+    const statusEl = document.getElementById('col-status');
+    const filenameEl = document.getElementById('csv-filename');
+
+    csvInput.addEventListener('change', async function() {
+        const file = this.files[0];
+        if (!file) return;
+
+        // Update filename display
+        filenameEl.textContent = file.name;
+        console.log('[FairSight] CSV selected:', file.name);
+
+        // Show loading state
+        selectEl.disabled = true;
+        selectEl.style.opacity = '0.5';
+        selectEl.innerHTML = '<option value="">Loading columns...</option>';
+        statusEl.textContent = 'Parsing CSV...';
+
+        // Send CSV to backend to extract columns
+        const formData = new FormData();
+        formData.append('csv_file', file);
+
+        try {
+            const resp = await fetch('/csv-columns', { method: 'POST', body: formData });
+            const data = await resp.json();
+            console.log('[FairSight] CSV columns response:', data);
+
+            if (data.error) {
+                selectEl.innerHTML = '<option value="">Error reading CSV</option>';
+                statusEl.textContent = 'Error: ' + data.error;
+                statusEl.style.color = '#ef4444';
+                return;
+            }
+
+            const columns = data.columns;
+            if (!columns || columns.length === 0) {
+                selectEl.innerHTML = '<option value="">No columns found</option>';
+                statusEl.textContent = 'CSV appears to be empty';
+                return;
+            }
+
+            // Populate dropdown
+            selectEl.innerHTML = '<option value="">— Select sensitive attribute —</option>';
+            columns.forEach(col => {
+                const opt = document.createElement('option');
+                opt.value = col;
+                opt.textContent = col;
+                selectEl.appendChild(opt);
+            });
+
+            selectEl.disabled = false;
+            selectEl.style.opacity = '1';
+            statusEl.textContent = columns.length + ' columns detected';
+            statusEl.style.color = '#10b981';
+            console.log('[FairSight] Dropdown populated with', columns.length, 'columns:', columns);
+
+            // Auto-select common sensitive attributes if present
+            const commonSensitive = ['gender', 'race', 'sex', 'age', 'ethnicity', 'religion'];
+            for (const attr of commonSensitive) {
+                const match = columns.find(c => c.toLowerCase() === attr);
+                if (match) {
+                    selectEl.value = match;
+                    console.log('[FairSight] Auto-selected sensitive attribute:', match);
+                    break;
+                }
+            }
+
+        } catch (err) {
+            console.error('[FairSight] Error fetching columns:', err);
+            selectEl.innerHTML = '<option value="">Error loading columns</option>';
+            statusEl.textContent = 'Network error — try again';
+            statusEl.style.color = '#ef4444';
+        }
+    });
+
+    // Log selected attribute on change
+    selectEl.addEventListener('change', function() {
+        console.log('[FairSight] Selected sensitive attribute:', this.value);
+    });
+});
+</script>
+{% endblock %}

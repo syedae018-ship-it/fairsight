@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="section-padding" style="padding-top:60px;">
+  <div class="container" style="max-width:900px;">
+    <div class="section-intro">
+      <div class="pill fade-up">AI ANALYST</div>
+      <h2 class="section-headline gradient-text fade-up">FairSight AI</h2>
+      <p class="fade-up">Your expert fairness analyst — every answer is data-driven</p>
+      {% if analysis %}
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap;" class="fade-up">
+        <span class="pill" style="{% if analysis.fairness_score < 50 %}border-color:rgba(239,68,68,0.3);color:#fca5a5;{% elif analysis.fairness_score < 75 %}border-color:rgba(245,158,11,0.3);color:#fcd34d;{% else %}border-color:rgba(16,185,129,0.3);color:#86efac;{% endif %}">Score: {{ analysis.fairness_score }}/100</span>
+        <span class="pill">DI: {{ "%.2f"|format(analysis.disparate_impact) }}</span>
+        <span class="pill" style="{% if analysis.verdict == 'biased' %}border-color:rgba(239,68,68,0.3);color:#fca5a5;{% elif analysis.verdict == 'warning' %}border-color:rgba(245,158,11,0.3);color:#fcd34d;{% else %}border-color:rgba(16,185,129,0.3);color:#86efac;{% endif %}">{{ analysis.verdict|upper }}</span>
+        <span class="pill">{{ analysis.sensitive_col }}</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="chat-wrap fade-up">
+      <div class="chat-messages" id="chat-window">
+        <div class="msg msg-ai">
+          <div class="msg-avatar">AI</div>
+          <div class="msg-bubble">
+            {% if analysis %}
+            <p style="margin:0 0 8px;"><strong style="color:var(--white);">FairSight AI</strong> — Fairness Analyst</p>
+            <p style="margin:0 0 8px;">I've analyzed your audit report. Here's what I see:</p>
+            <p style="margin:0 0 4px;">📊 Score: <strong style="color:var(--white);">{{ analysis.fairness_score }}/100</strong> | DI: <strong style="color:var(--white);">{{ "%.2f"|format(analysis.disparate_impact) }}</strong></p>
+            {% for group, rate in analysis.demographic_parity.items() %}
+            <p style="margin:0 0 2px;padding-left:8px;">• <strong style="color:var(--white);">{{ group }}</strong>: {{ (rate * 100)|round(1) }}%</p>
+            {% endfor %}
+            <p style="margin:8px 0 0;">Ask me anything — I don't do generic answers.</p>
+            {% else %}
+            <p style="margin:0 0 6px;"><strong style="color:var(--white);">FairSight AI</strong> — Fairness Analyst</p>
+            <p style="margin:0;">No analysis data loaded. Run a bias audit first, then come back for expert insights.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="chat-input-bar">
+        <textarea id="chat-input" class="chat-input" placeholder="Ask about your bias report..." rows="1" onkeydown="handleKeydown(event)" oninput="autoResize(this);toggleSendBtn()"></textarea>
+        <button class="chat-send" id="btn-send" onclick="sendMessage()" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="quick-prompts fade-up">
+      <button class="quick-prompt" onclick="sendQuickAction('Why is my fairness score low?')">📊 Fairness Score</button>
+      <button class="quick-prompt" onclick="sendQuickAction('Explain the disparate impact ratio.')">📈 Disparate Impact</button>
+      <button class="quick-prompt" onclick="sendQuickAction('Which group is most affected and why?')">🚨 Affected Group</button>
+      <button class="quick-prompt" onclick="sendQuickAction('What critical fixes should I apply?')">🛠 Critical Fixes</button>
+      <button class="quick-prompt" onclick="sendQuickAction('What are the legal risks of this bias level?')">⚖️ Legal Risks</button>
+      <button class="quick-prompt" onclick="sendQuickAction('Give me a full summary of the report.')">📋 Full Summary</button>
+    </div>
+    <p style="text-align:center;margin-top:12px;font-size:11px;color:var(--muted);">FairSight AI can make mistakes. Verify important information.</p>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let chatHistory = [];
+function sendQuickAction(q) { document.getElementById('chat-input').value = q; toggleSendBtn(); sendMessage(); }
+function autoResize(el) { el.style.height = '44px'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
+function toggleSendBtn() { document.getElementById('btn-send').disabled = !document.getElementById('chat-input').value.trim(); }
+function handleKeydown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
+
+async function sendMessage() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    if (!message) return;
+    input.value = ''; input.style.height = '44px'; toggleSendBtn();
+    appendMsg('user', message);
+    chatHistory.push({ role: 'user', content: message });
+    const typingId = appendTyping();
+    document.getElementById('btn-send').disabled = true;
+    try {
+        const res = await fetch('/chat/message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, history: chatHistory.slice(-10) }) });
+        removeTyping(typingId);
+        if (!res.ok) { appendMsg('ai', 'Server error. Please try again.'); return; }
+        const data = await res.json();
+        if (data.error) { appendMsg('ai', data.error); return; }
+        appendMsg('ai', data.reply);
+        chatHistory.push({ role: 'assistant', content: data.reply });
+    } catch (err) { removeTyping(typingId); appendMsg('ai', 'Connection error.'); }
+    toggleSendBtn();
+}
+
+function appendMsg(role, text) {
+    const w = document.getElementById('chat-window');
+    const d = document.createElement('div');
+    d.className = 'msg msg-' + (role === 'user' ? 'user' : 'ai');
+    const formatted = role === 'ai' ? formatAI(text) : esc(text);
+    d.innerHTML = `<div class="msg-avatar">${role === 'user' ? 'You' : 'AI'}</div><div class="msg-bubble">${formatted}</div>`;
+    w.appendChild(d); w.scrollTop = w.scrollHeight;
+}
+
+function formatAI(text) {
+    let h = esc(text);
+    // Bold
+    h = h.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--white)">$1</strong>');
+    // Section headers with emojis
+    h = h.replace(/^(🔍|⚠️|🛠|💡|📊|📈|📋|🚨|👋|⚖️)(.+)$/gm, '<div style="margin-top:12px;margin-bottom:4px;font-weight:600;color:var(--white);">$1$2</div>');
+    // Bullet points
+    h = h.replace(/^[\-•]\s+(.+)$/gm, '<li style="margin-left:16px;margin-bottom:4px;">$1</li>');
+    // Numbered lists
+    h = h.replace(/^(\d+)\.\s+(.+)$/gm, '<li style="margin-left:16px;margin-bottom:4px;"><strong style="color:var(--white);">$1.</strong> $2</li>');
+    // Paragraphs
+    h = h.replace(/\n\n/g, '</p><p style="margin-top:8px;">');
+    h = h.replace(/\n/g, '<br>');
+    // Inline code
+    h = h.replace(/`(.*?)`/g, '<code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:4px;font-size:13px;">$1</code>');
+    return '<p style="margin:0;">' + h + '</p>';
+}
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+let tc = 0;
+function appendTyping() {
+    const w = document.getElementById('chat-window');
+    const id = 'typing-' + (++tc);
+    const d = document.createElement('div');
+    d.className = 'msg msg-ai'; d.id = id;
+    d.innerHTML = '<div class="msg-avatar">AI</div><div class="msg-bubble" style="display:flex;gap:4px;align-items:center;padding:16px 18px;"><div style="width:6px;height:6px;border-radius:50%;background:var(--muted);animation:pulse 1s infinite;"></div><div style="width:6px;height:6px;border-radius:50%;background:var(--muted);animation:pulse 1s infinite 0.2s;"></div><div style="width:6px;height:6px;border-radius:50%;background:var(--muted);animation:pulse 1s infinite 0.4s;"></div></div>';
+    if (!document.getElementById('pulse-style')) {
+        const s = document.createElement('style'); s.id = 'pulse-style';
+        s.innerHTML = '@keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}';
+        document.head.appendChild(s);
+    }
+    w.appendChild(d); w.scrollTop = w.scrollHeight; return id;
+}
+function removeTyping(id) { const el = document.getElementById(id); if (el) el.remove(); }
+document.addEventListener('DOMContentLoaded', () => document.getElementById('chat-input').focus());
+</script>
+{% endblock %}

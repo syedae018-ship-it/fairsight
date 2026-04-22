@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="FairSight — AI Bias Detection Platform. Upload datasets, detect bias, and get AI-powered fix recommendations.">
+    <title>FairSight — AI Bias Detection</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=21">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="container navbar-inner">
+            <a href="{{ url_for('dashboard.index') }}" class="nav-logo">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                FairSight
+            </a>
+            <div class="nav-links" id="nav-links">
+                <a href="{{ url_for('dashboard.index') }}" class="{% if request.endpoint == 'dashboard.index' %}active{% endif %}">Home</a>
+                <a href="{{ url_for('upload.upload_page') }}" class="{% if request.endpoint == 'upload.upload_page' %}active{% endif %}">Upload</a>
+                <a href="{{ url_for('model.model_upload') }}" class="{% if request.endpoint == 'model.model_upload' %}active{% endif %}">Model Audit</a>
+                <a href="{{ url_for('report.report_page') }}" class="{% if request.endpoint == 'report.report_page' %}active{% endif %}">Reports</a>
+                <a href="{{ url_for('suggestions.suggestions_page') }}" class="{% if request.endpoint == 'suggestions.suggestions_page' %}active{% endif %}">Fix Bias</a>
+                <a href="{{ url_for('chat.chat_page') }}" class="{% if request.endpoint == 'chat.chat_page' %}active{% endif %}">AI Chat</a>
+                <a href="{{ url_for('simulator.simulator_page') }}" class="{% if request.endpoint == 'simulator.simulator_page' %}active{% endif %}">Simulator</a>
+            </div>
+            {% if session.get('authenticated') %}
+            <div style="display:flex;align-items:center;gap:16px;">
+                <span style="font-size:13px;color:var(--body-text);">{{ session.get('user_name', 'User') }}</span>
+                <a href="{{ url_for('auth.logout') }}" class="nav-cta" style="font-size:12px;">Logout</a>
+            </div>
+            {% else %}
+            <a href="{{ url_for('auth.login') }}" class="nav-cta">Login</a>
+            {% endif %}
+            <button class="nav-mobile-btn" id="nav-toggle" aria-label="Toggle menu">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-wrap">
+        {% for category, message in messages %}
+        <div class="flash-msg">
+            <span>{{ message }}</span>
+            <button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;" onclick="this.parentElement.remove()">×</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Page Content -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <span style="font-size:16px;font-weight:700;color:var(--white);">FairSight</span>
+                    <p>AI-powered bias detection platform. Upload, analyze, and fix dataset biases with precision.</p>
+                </div>
+                <div class="footer-col">
+                    <h4>Product</h4>
+                    <a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+                    <a href="{{ url_for('upload.upload_page') }}">Upload</a>
+                    <a href="{{ url_for('report.report_page') }}">Reports</a>
+                </div>
+                <div class="footer-col">
+                    <h4>Resources</h4>
+                    <a href="#">Documentation</a>
+                    <a href="#">API</a>
+                    <a href="#">Changelog</a>
+                </div>
+                <div class="footer-col">
+                    <h4>Company</h4>
+                    <a href="#">About</a>
+                    <a href="#">Privacy</a>
+                    <a href="#">Terms</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <span>© 2026 FairSight AI. All rights reserved.</span>
+                <span>Powered by Gemini AI</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scroll fade-up observer -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Mobile nav toggle
+        const toggle = document.getElementById('nav-toggle');
+        const links = document.getElementById('nav-links');
+        if (toggle) toggle.addEventListener('click', () => links.classList.toggle('open'));
+
+        // IntersectionObserver for fade-up
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry, i) => {
+                if (entry.isIntersecting) {
+                    const idx = Array.from(entry.target.parentElement?.children || []).indexOf(entry.target);
+                    const delay = Math.max(0, idx) * 80;
+                    setTimeout(() => entry.target.classList.add('visible'), delay);
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+        document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+    });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
